@@ -1,0 +1,144 @@
+/* Genel Stil */
+body {
+  font-family: 'Comic Sans MS', cursive;
+  background: linear-gradient(to bottom, #ffe6f0, #ffb3d9);
+  text-align: center;
+  padding: 20px;
+  margin: 0;
+}
+
+/* Başlık */
+.title {
+  font-size: 2.5em;
+  color: #ff4081;
+  text-shadow: 2px 2px 5px rgba(255, 64, 129, 0.5);
+  margin-bottom: 20px;
+  animation: fadeIn 1.5s ease-in-out;
+}
+
+/* Resim Seçim Alanı */
+.image-selection {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 30px;
+  padding: 10px;
+}
+
+/* Resimler */
+.image-option {
+  width: 110px;
+  height: 110px;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.image-option:hover {
+  transform: scale(1.15);
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Puzzle Alanı */
+.puzzle-container {
+  width: 600px;
+  height: 400px;
+  margin: 30px auto;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 3px;
+  border: 8px solid #ff66a3;
+  background: #fff0f5;
+  border-radius: 10px;
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.2);
+  position: relative;
+  display: none;
+  animation: fadeIn 1s ease-in-out;
+}
+
+.puzzle-piece {
+  width: 100%;
+  height: 100%;
+  background-size: 600px 400px;
+  cursor: grab;
+  border-radius: 5px;
+  transition: transform 0.3s ease-in-out;
+}
+.puzzle-piece:active {
+  transform: scale(1.1);
+}
+
+.puzzle-piece:active {
+  transform: scale(1.05);
+}
+
+.game-btn {
+  margin-top: 20px;
+  background: linear-gradient(to right, #ff4081, #ff80b3);
+  padding: 12px 25px;
+  color: white;
+  font-size: 20px;
+  border: none;
+  border-radius: 25px;
+  transition: all 0.3s ease-in-out;
+  display: none;
+  box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.game-btn:hover {
+  background: linear-gradient(to right, #e73370, #ff4d88);
+  transform: scale(1.1);
+  box-shadow: 0px 6px 12px rgba(0, 0, 0, 0.3);
+}
+
+.message {
+  margin-top: 20px;
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #33cc33;
+  display: none;
+  animation: popUp 0.8s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes popUp {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .puzzle-container {
+    width: 90%;
+    height: auto;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+  }
+  
+  .image-selection {
+    gap: 8px;
+  }
+
+  .image-option {
+    width: 90px;
+    height: 90px;
+  }
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Sevgi Puzzle'ı</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <h1 class="title">🧩 Aşk Dolu Puzzle 🧩</h1>
+  <div id="timer">00:00</div>
+  <audio id="move-sound" src="/public/sounds/move.mp3"></audio>
+  <audio id="win-sound" src="/public/sounds/win.mp3"></audio>
+  <audio id="lose-sound" src="/public/sounds/lose.mp3"></audio>
+  <div class="image-selection" id="image-selection">
+    <img src="images/resim1.png" alt="Resim 1" class="image-option" onclick="setImage('resim1.png')">
+    <img src="images/resim2.png" alt="Resim 2" class="image-option" onclick="setImage('resim2.png')">
+    <img src="images/resim3.png" alt="Resim 3" class="image-option" onclick="setImage('resim3.png')">
+    <img src="images/resim4.png" alt="Resim 3" class="image-option" onclick="setImage('resim4.png')">
+    <img src="images/resim5.png" alt="Resim 3" class="image-option" onclick="setImage('resim5.png')">
+  </div>
+  <div class="puzzle-container" id="puzzle-container"></div>
+  <div id="message" class="message">🎉 Tebrikler Hayatım Kazandınnn! 🎉</div>
+  <button class="game-btn" id="reset-btn" onclick="resetGame()">Yeniden Başlat</button>
+  <script src="puzzle.js"></script>
+  <script src="confetti.js"></script>
+</body>
+
+</html>
