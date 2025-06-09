@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tek Oyunculu Orienteering Oyunu - Derince Harikalar Sahili</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0; /* Ensure map is at the bottom */
+        }
+        #sidebar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #sidebar > div {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #333;
+        }
+        #compass {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 70px; /* Larger compass */
+            height: 70px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            border: 2px solid #ccc;
+        }
+        #compass-arrow {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent; /* Wider arrow */
+            border-right: 15px solid transparent;
+            border-bottom: 30px solid #EF4444; /* Brighter red */
+            transform-origin: 50% 75%; /* Adjust origin for better rotation */
+            transition: transform 0.2s ease-out;
+            position: relative;
+            top: -10px; /* Lift arrow slightly to center better */
+        }
+        #user-marker-icon {
+            width: 30px !important;
+            height: 30px !important;
+            background-color: #3B82F6; /* Blue dot for user */
+            border-radius: 50%;
+            border: 3px solid #BFDBFE; /* Light blue border */
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.7); /* Glow effect */
+            animation: pulse 1.5s infinite ease-in-out;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+        .start-screen, .end-screen {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            padding: 20px;
+            text-align: center;
+        }
+        .start-screen h1, .end-screen h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #60A5FA; /* Blue */
+        }
+        .start-screen p, .end-screen p {
+            font-size: 1.2em;
+            max-width: 600px;
+            margin-bottom: 30px;
+        }
+        .start-screen button, .end-screen button {
+            padding: 12px 30px;
+            font-size: 1.2em;
+            border: none;
+            border-radius: 9999px; /* Tailwind's rounded-full */
+            background-color: #3B82F6; /* Blue */
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+        .start-screen button:hover, .end-screen button:hover {
+            background-color: #2563EB; /* Darker blue */
+            transform: scale(1.05);
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Sidebar for Game Info -->
+    <div id="sidebar" class="hidden">
+        <div>Süre: <span id="timer">00:00</span></div>
+        <div>Geçilen Nokta: <span id="count">0</span>/<span id="total">0</span></div>
+        <div>Sıradaki Nokta: <span id="nextCheckpointName">Yükleniyor...</span></div>
+        <div>Mesafe: <span id="distanceToNext">0 m</span></div>
+    </div>
+
+    <!-- Compass -->
+    <div id="compass" class="hidden">
+        <div id="compass-arrow"></div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen" class="start-screen">
+        <h1>Oryantiring Yarışı</h1>
+        <p>Derince Harikalar Sahili'nde heyecan dolu bir oryantiring macerasına hoş geldiniz! Haritada size gösterilen checkpoint'leri sırasıyla ziyaret edin ve en kısa sürede yarışı tamamlayın.</p>
+        <p>Cihazınızın konum servisini ve hareket sensörlerini (pusula için) etkinleştirdiğinizden emin olun.</p>
+        <button id="startBtn">Yarışı Başlat</button>
+    </div>
+
+    <!-- End Screen -->
+    <div id="endScreen" class="end-screen hidden">
+        <h1>Tebrikler! Yarışı Tamamladınız!</h1>
+        <p id="finalMessage"></p>
+        <button id="restartBtn">Yeniden Oyna</button>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // --- Leaflet Map Initialization ---
+        const map = L.map('map', {
+            zoomControl: false // Disable default zoom control
+        }).setView([40.7487, 29.8062], 16); // Centered on Derince Harikalar Sahili
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap katkıda bulunanlar'
+        }).addTo(map);
+
+        // --- Custom User Marker Icon ---
+        const userIcon = L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div id="user-marker-icon"></div>',
+            iconSize: [30, 30], // Size of the icon
+            iconAnchor: [15, 15] // Point of the icon which will correspond to marker's location
+        });
+
+        // --- Game State Variables ---
+        let userMarker;
+        let locationWatchId; // To store the watchPosition ID
+        let timerId;
+        let seconds = 0;
+        let currentCheckpointIndex = 0;
+        let isGameActive = false;
+        let currentCheckpointMarker = null; // Marker for the actively sought checkpoint
+
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('startScreen');
+        const endScreen = document.getElementById('endScreen');
+        const finalMessage = document.getElementById('finalMessage');
+        const sidebar = document.getElementById('sidebar');
+        const compass = document.getElementById('compass');
+        const startButton = document.getElementById('startBtn');
+        const restartButton = document.getElementById('restartBtn');
+        const timerEl = document.getElementById('timer');
+        const countEl = document.getElementById('count');
+        const totalEl = document.getElementById('total');
+        const nextCheckpointNameEl = document.getElementById('nextCheckpointName');
+        const distanceToNextEl = document.getElementById('distanceToNext');
+        const compassArrow = document.getElementById('compass-arrow');
+
+
+        const checkpoints = [
+            { id: 1, name: "Sahil Girişi", latlng: [40.7495, 29.8050], marker: null, found: false },
+            { id: 2, name: "Çay Bahçesi Karşısı", latlng: [40.7480, 29.8010], marker: null, found: false },
+            { id: 3, name: "Deniz Feneri Yakını", latlng: [40.7485, 29.8010], marker: null, found: false },
+            { id: 4, name: "Park İçi Heykel", latlng: [40.7470, 29.8000], marker: null, found: false }
+        ];
+        totalEl.textContent = checkpoints.length;
+
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const toRad = (deg) => deg * Math.PI / 180;
+            const toDeg = (rad) => rad * 180 / Math.PI;
+
+            const φ1 = toRad(lat1);
+            const φ2 = toRad(lat2);
+            const Δλ = toRad(lon2 - lon1);
+
+            const y = Math.sin(Δλ) * Math.cos(φ2);
+            const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+            const θ = Math.atan2(y, x); // Bearing in radians from -PI to +PI
+            let bearing = toDeg(θ);
+            return (bearing + 360) % 360; // Normalize to 0-360
+        }
+
+        // --- Game Logic Functions ---
+
+        /**
+         * Hides all checkpoint markers from the map.
+         */
+        function hideAllCheckpoints() {
+            checkpoints.forEach(cp => {
+                if (cp.marker) {
+                    map.removeLayer(cp.marker);
+                    cp.marker = null; // Clear reference
+                }
+            });
+        }
+
+        /**
+         * Shows the next active checkpoint on the map and updates UI.
+         */
+        function showNextCheckpoint() {
+            hideAllCheckpoints(); // Ensure only one is visible
+
+            if (currentCheckpointIndex < checkpoints.length) {
+                const nextCp = checkpoints[currentCheckpointIndex];
+                currentCheckpointMarker = L.circle(nextCp.latlng, {
+                    radius: 20, // Larger radius for target
+                    color: '#60A5FA', // Blue for active target
+                    fillColor: '#3B82F6',
+                    fillOpacity: 0.5
+                }).addTo(map);
+                currentCheckpointMarker.bindPopup(`Sıradaki Nokta: ${nextCp.name}`).openPopup();
+                nextCheckpointNameEl.textContent = nextCp.name;
+            } else {
+                nextCheckpointNameEl.textContent = "Tüm Noktalar Bulundu!";
+            }
+        }
+
+        /**
+         * Handles user's geolocation updates.
+         * @param {GeolocationPosition} position - Current geolocation data.
+         */
+        function onLocationUpdate(position) {
+            const userLatLng = L.latLng(position.coords.latitude, position.coords.longitude);
+
+            // Update user marker position
+            if (!userMarker) {
+                userMarker = L.marker(userLatLng, { icon: userIcon }).addTo(map);
+            } else {
+                userMarker.setLatLng(userLatLng);
+            }
+
+            // Keep map centered on user, but allow user to pan around
+            // map.panTo(userLatLng); // This might be too aggressive for exploring
+
+            // Check if current checkpoint is reached
+            if (currentCheckpointIndex < checkpoints.length) {
+                const nextCp = checkpoints[currentCheckpointIndex];
+                const distance = userLatLng.distanceTo(nextCp.latlng); // Distance in meters
+
+                distanceToNextEl.textContent = `${Math.round(distance)} m`;
+
+                if (distance < 20 && !nextCp.found) { // Checkpoint radius: 20 meters
+                    nextCp.found = true;
+                    if (currentCheckpointMarker) {
+                        currentCheckpointMarker.setStyle({ color: 'green', fillColor: 'green', fillOpacity: 0.7 });
+                        currentCheckpointMarker.setRadius(15); // Shrink it
+                        currentCheckpointMarker.unbindPopup();
+                        currentCheckpointMarker.bindPopup(`Checkpoint ${nextCp.id} Bulundu!`).openPopup();
+                    }
+                    onCheckpointReached(nextCp.id);
+                }
+            }
+        }
+
+        /**
+         * Handles DeviceOrientation updates for compass.
+         * @param {DeviceOrientationEvent} event - Device orientation data.
+         */
+        let lastAlpha = 0;
+        function onDeviceOrientation(event) {
+            let alpha = event.alpha; // Z-axis rotation (0-360)
+
+            // Adjust for iOS Safari, which provides webkitCompassHeading (true north)
+            if (typeof event.webkitCompassHeading !== 'undefined') {
+                alpha = 360 - event.webkitCompassHeading; // iOS uses true north, convert to counter-clockwise for compatibility
+            }
+
+            // Store last known alpha for compass updates when no target
+            lastAlpha = alpha;
+
+            // Update compass arrow to point towards the next checkpoint
+            if (isGameActive && currentCheckpointIndex < checkpoints.length && userMarker) {
+                const userLatLng = userMarker.getLatLng();
+                const nextCp = checkpoints[currentCheckpointIndex];
+                const targetLatLng = nextCp.latlng;
+
+                const bearingToTarget = calculateBearing(
+                    userLatLng.lat, userLatLng.lng,
+                    targetLatLng[0], targetLatLng[1]
+                );
+
+                // Calculate the difference between device heading and target bearing
+                // This gives us the rotation needed for the arrow relative to the device's screen
+                const relativeRotation = (bearingToTarget - alpha + 360) % 360;
+                compassArrow.style.transform = `rotate(${relativeRotation}deg)`;
+            } else {
+                // If no active checkpoint or userMarker, just show device heading
+                compassArrow.style.transform = `rotate(${-lastAlpha}deg)`; // Negative because CSS rotation is clockwise
+            }
+        }
+
+        /**
+         * Called when a checkpoint is successfully reached.
+         * @param {number} id - The ID of the reached checkpoint.
+         */
+        function onCheckpointReached(id) {
+            countEl.textContent = ++currentCheckpointIndex; // Increment and update counter
+
+            if (currentCheckpointIndex === checkpoints.length) {
+                // All checkpoints found
+                endGame();
+            } else {
+                // Move to next checkpoint
+                setTimeout(showNextCheckpoint, 1000); // Small delay before showing next
+            }
+        }
+
+        /**
+         * Starts the game.
+         */
+        function startGame() {
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            sidebar.classList.remove('hidden');
+            compass.classList.remove('hidden');
+
+            // Reset game state
+            seconds = 0;
+            currentCheckpointIndex = 0;
+            isGameActive = true;
+            countEl.textContent = 0;
+            timerEl.textContent = '00:00';
+
+            // Reset checkpoints for a new game
+            checkpoints.forEach(cp => cp.found = false);
+            showNextCheckpoint(); // Display the first checkpoint
+
+            // Start geolocation tracking
+            if (navigator.geolocation) {
+                locationWatchId = navigator.geolocation.watchPosition(
+                    onLocationUpdate,
+                    (error) => {
+                        console.error('Konum hatası:', error);
+                        // Provide user feedback for common errors
+                        let errorMessage = 'Konumunuz alınamadı. Lütfen konum servislerini etkinleştirin.';
+                        if (error.code === error.PERMISSION_DENIED) {
+                            errorMessage = 'Konum izni reddedildi. Lütfen tarayıcı ayarlarınızdan izin verin.';
+                        } else if (error.code === error.POSITION_UNAVAILABLE) {
+                            errorMessage = 'Konum bilgisi mevcut değil.';
+                        } else if (error.code === error.TIMEOUT) {
+                            errorMessage = 'Konum alma süresi doldu.';
+                        }
+                        alert(errorMessage); // Using alert for critical error feedback
+                        endGame(); // End game on critical location error
+                    },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+                );
+            } else {
+                alert('Tarayıcınız konum servislerini desteklemiyor.');
+                endGame();
+            }
+
+            // Start timer
+            clearInterval(timerId); // Clear any previous timer
+            timerId = setInterval(() => {
+                seconds++;
+                const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const s = String(seconds % 60).padStart(2, '0');
+                timerEl.textContent = `${m}:${s}`;
+            }, 1000);
+
+            // Start compass tracking
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientationabsolute' in DeviceOrientationEvent ? 'deviceorientationabsolute' : 'deviceorientation', onDeviceOrientation, true);
+            } else {
+                console.warn('Cihazınız pusula özelliğini desteklemiyor.');
+                compass.classList.add('hidden'); // Hide compass if not supported
+            }
+        }
+
+        /**
+         * Ends the game.
+         */
+        function endGame() {
+            isGameActive = false;
+            clearInterval(timerId);
+            if (locationWatchId) {
+                navigator.geolocation.clearWatch(locationWatchId);
+            }
+            if (window.DeviceOrientationEvent) {
+                window.removeEventListener('deviceorientationabsolute' in DeviceOrientationEvent ? 'deviceorientationabsolute' : 'deviceorientation', onDeviceOrientation, true);
+            }
+
+            hideAllCheckpoints(); // Remove all checkpoint markers
+
+            // Display final message
+            let message = `Toplam süreniz: ${timerEl.textContent}`;
+            if (currentCheckpointIndex === checkpoints.length) {
+                finalMessage.textContent = `Tebrikler! Tüm checkpoint'leri buldunuz! ${message}`;
+            } else {
+                finalMessage.textContent = `Oyun sona erdi. ${currentCheckpointIndex} checkpoint buldunuz. ${message}`;
+            }
+            
+            endScreen.classList.remove('hidden');
+            sidebar.classList.add('hidden');
+            compass.classList.add('hidden');
+            if (userMarker) {
+                map.removeLayer(userMarker);
+                userMarker = null;
+            }
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // Initial setup - hide game elements until start
+        sidebar.classList.add('hidden');
+        compass.classList.add('hidden');
+
+    </script>
+</body>
+</html>

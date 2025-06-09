@@ -1,10 +1,11 @@
 const container = document.getElementById("puzzle-container");
 const imageSelection = document.getElementById("image-selection");
 const resetBtn = document.getElementById("reset-btn");
+const correctCountDisplay = document.getElementById("correct-count");
 const totalPieces = 30;
 let positions = [];
 let selectedImage = '';
-let timeLeft = 300;
+let timeLeft = 420; // 7 dakika
 let timer;
 
 function startTimer() {
@@ -33,12 +34,14 @@ function startTimer() {
 }
 
 function setImage(imageName) {
+    document.getElementById("timer").style.display = "block";
+    correctCountDisplay.style.display = "block";
     selectedImage = `images/${imageName}`;
     imageSelection.style.display = 'none';
     container.style.display = 'grid';
     resetBtn.style.display = 'inline-block';
     createPuzzle();
-    timeLeft = 300;
+    timeLeft = 420;
     startTimer();
 }
 
@@ -112,19 +115,27 @@ function checkWin() {
             correctCount++;
         }
     });
-    console.log(correctCount)
+    correctCountDisplay.textContent = `Doğru Parça: ${correctCount} / ${totalPieces}`;
 
     if (correctCount === totalPieces) {
         document.getElementById("message").style.display = "block";
         playSound("win-sound");
         startConfetti();
+        setTimeout(() => {
+            window.location.href = "wheel.html";
+          }, 6000);
+          
     }
 }
 
 function playSound(soundId) {
-    document.getElementById(soundId).play();
+    const sound=document.getElementById(soundId);
+    sound.currentTime=0;
+    sound.play();
 }
 
 function resetGame() {
+    positions = []; // positions dizisini sıfırlayın
     createPuzzle();
+    timeLeft=420;
 }

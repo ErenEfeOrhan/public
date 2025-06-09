@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buz Pateni Oyunu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom styles that aren't easily done with Tailwind or for basic resets */
+    body {
+      margin: 0;
+      background: #a0d8f7; /* Light blue background for the overall page */
+      overflow: hidden; /* Prevent scrolling */
+      font-family: 'Inter', sans-serif; /* Use Inter font */
+      user-select: none; /* Disable text selection */
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh; /* Ensure body takes full viewport height */
+    }
+    #game {
+      display: block; /* Ensure canvas is a block element */
+      margin: auto; /* Center the canvas horizontally */
+      background: linear-gradient(to bottom, #e0f7ff, #80c8f7); /* Ice rink gradient */
+      border-radius: 10px; /* Rounded corners for the game area */
+      box-shadow: 0 0 20px rgba(102, 163, 255, 0.5); /* Soft blue shadow */
+      touch-action: none; /* Prevent browser touch actions like scrolling/zooming */
+      max-width: 95vw; /* Max width relative to viewport */
+      max-height: 95vh; /* Max height relative to viewport */
+      position: relative; /* For pause button positioning if needed */
+    }
+    #pauseBtn {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 6; /* Above scoreboard */
+        padding: 8px 15px;
+        background-color: rgba(0, 0, 0, 0.6);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        transition: background-color 0.2s ease;
+    }
+    #pauseBtn:hover {
+        background-color: rgba(0, 0, 0, 0.8);
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-300 to-cyan-500 flex items-center justify-center min-h-screen p-4">
+  <canvas id="game" class="rounded-xl shadow-2xl"></canvas>
+
+  <!-- Start Screen -->
+  <div id="startScreen" class="absolute inset-0 bg-gray-900 bg-opacity-75 flex flex-col items-center justify-center text-white z-10 p-4">
+    <h1 class="text-4xl md:text-6xl font-bold mb-6 text-center">Buz Pateni Oyunu</h1>
+    <p class="text-xl md:text-2xl mb-8 text-center max-w-md">Engellerden kaçın, güçlendiricileri toplayın ve en yüksek puanı elde edin!</p>
+    <button id="startBtn" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50">
+      Başla
+    </button>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div id="gameOverScreen" class="absolute inset-0 bg-gray-900 bg-opacity-75 flex flex-col items-center justify-center text-white z-10 p-4 hidden">
+    <h1 class="text-4xl md:text-6xl font-bold mb-6 text-center">Oyun Bitti!</h1>
+    <p id="finalScore" class="text-xl md:text-3xl font-semibold mb-4"></p>
+    <button id="restartBtn" class="px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-full shadow-lg transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-500 focus:ring-opacity-50">
+      Yeniden Oyna
+    </button>
+  </div>
+
+  <!-- Scoreboard -->
+  <div id="scoreboard" class="absolute top-4 right-4 bg-white bg-opacity-80 text-blue-800 p-3 rounded-lg shadow-md font-bold text-lg md:text-xl z-5 hidden">
+    Skor: <span id="currentScore">0</span><br />
+    En Yüksek Skor: <span id="highScoreText">0</span>
+  </div>
+
+  <!-- Pause Button (positioned relative to body) -->
+  <button id="pauseBtn" class="hidden">Duraklat</button>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // --- Game Variables ---
+    const skater = {
+      x: 0,
+      y: 0,
+      width: 48,
+      height: 48,
+      baseSpeed: 7,
+      speed: 7,
+      dx: 0,
+      shield: false,
+      shieldTimer: 0,
+      speedTrailTimer: 0 // New: for speed visual effect
+    };
+
+    let obstacles = [];
+    let snowflakes = [];
+    let powerUps = [];
+    let score = 0;
+    let highScore = localStorage.getItem('highScore') || 0;
+    let isGameOver = false;
+    let gamePaused = false; // New: Pause state
+    let frameCount = 0;
+    let powerUpActive = null;
+    let powerUpTimer = 0;
+    let scoreMultiplier = 1;
+    let scoreFlashTimer = 0; // New: For score visual feedback
+
+    // Obstacle types (new)
+    const obstacleTypes = [
+      { type: 'normal', size: 40 },
+      { type: 'large', size: 60 } // Larger obstacle
+    ];
+
+    // --- DOM Elements ---
+    const startScreen = document.getElementById('startScreen');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreText = document.getElementById('finalScore');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const scoreboard = document.getElementById('scoreboard');
+    const currentScoreText = document.getElementById('currentScore');
+    const highScoreText = document.getElementById('highScoreText');
+    const pauseBtn = document.getElementById('pauseBtn'); // New: Pause button
+
+    // --- Image Assets ---
+    const skaterImg = new Image();
+    skaterImg.src = 'images/girl.png'; // Make sure this path is correct!
+
+    // --- Audio Context and Sounds ---
+    let audioContext;
+    let powerUpSoundBuffer;
+    let gameOverSoundBuffer;
+
+    /**
+     * Initializes the AudioContext and loads sound files.
+     */
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        // Function to load sounds (not used for simple tones here, but good practice)
+        const loadSound = (url, callback) => {
+          fetch(url)
+            .then(response => response.arrayBuffer())
+            .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+            .then(audioBuffer => callback(audioBuffer))
+            .catch(e => console.error("Error with decoding audio data", e));
+        };
+
+        powerUpSoundBuffer = createSimpleToneBuffer(audioContext, 440, 0.1); // A4, 0.1s duration
+        gameOverSoundBuffer = createSimpleToneBuffer(audioContext, 220, 0.5); // A3, 0.5s duration
+      }
+    }
+
+    /**
+     * Creates a simple tone AudioBuffer.
+     * @param {AudioContext} context - The audio context.
+     * @param {number} frequency - The frequency of the tone in Hz.
+     * @param {number} duration - The duration of the tone in seconds.
+     * @returns {AudioBuffer} The created AudioBuffer.
+     */
+    function createSimpleToneBuffer(context, frequency, duration) {
+      const sampleRate = context.sampleRate;
+      const length = sampleRate * duration;
+      const buffer = context.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        data[i] = Math.sin(2 * Math.PI * frequency * (i / sampleRate));
+      }
+      return buffer;
+    }
+
+    /**
+     * Plays a given AudioBuffer.
+     * @param {AudioBuffer} buffer - The audio buffer to play.
+     */
+    function playSound(buffer) {
+      if (!audioContext || !buffer) return;
+      const source = audioContext.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioContext.destination);
+      source.start(0);
+    }
+
+    // --- Canvas Resizing for Responsiveness ---
+    /**
+     * Adjusts canvas dimensions based on window size.
+     */
+    function resizeCanvas() {
+      const maxWidth = 500;
+      const maxHeight = 700;
+
+      canvas.width = Math.min(window.innerWidth * 0.9, maxWidth);
+      canvas.height = Math.min(window.innerHeight * 0.9, maxHeight);
+
+      skater.x = (canvas.width / 2) - (skater.width / 2);
+      skater.y = canvas.height - 100;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // --- Game Object Drawing Functions ---
+
+    /**
+     * Draws the skater using the loaded image, with visual feedback for shield and speed.
+     */
+    function drawSkater() {
+      // Draw speed trails if active
+      if (skater.speedTrailTimer > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${skater.speedTrailTimer / 60})`; // Fades out
+        for (let i = 0; i < 3; i++) { // Draw a few trailing lines
+          ctx.beginPath();
+          ctx.arc(skater.x + skater.width / 2 + (i * 3 - 6), skater.y + skater.height + (i * 5), 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      ctx.drawImage(skaterImg, skater.x, skater.y, skater.width, skater.height);
+
+      // Shield effect if active (pulsating glow)
+      if (skater.shield) {
+        const glowAlpha = Math.abs(Math.sin(frameCount * 0.1)) * 0.5 + 0.3; // Pulsating effect
+        ctx.strokeStyle = `rgba(0, 204, 255, ${glowAlpha})`; // Light blue pulsating
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(skater.x + skater.width / 2, skater.y + skater.height / 2, skater.width * 0.7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    /**
+     * Draws an obstacle with the old ice block shape, adapted for different sizes.
+     * @param {object} obstacle - The obstacle object.
+     */
+    function drawObstacle(obstacle) {
+      ctx.fillStyle = '#aaddff'; // Light blue/white
+      ctx.strokeStyle = '#66aadd'; // Darker blue
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      // Adjust drawing points based on obstacle's actual width/height
+      ctx.moveTo(obstacle.x + obstacle.width * 0.2, obstacle.y);
+      ctx.lineTo(obstacle.x + obstacle.width * 0.8, obstacle.y);
+      ctx.lineTo(obstacle.x + obstacle.width, obstacle.y + obstacle.height * 0.8);
+      ctx.lineTo(obstacle.x + obstacle.width * 0.8, obstacle.y + obstacle.height);
+      ctx.lineTo(obstacle.x + obstacle.width * 0.2, obstacle.y + obstacle.height);
+      ctx.lineTo(obstacle.x, obstacle.y + obstacle.height * 0.2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    /**
+     * Draws a power-up icon based on its type.
+     * @param {object} powerUp - The power-up object.
+     */
+    function drawPowerUp(powerUp) {
+      ctx.fillStyle = '#ffd700'; // Gold color for power-ups
+      ctx.beginPath();
+      ctx.arc(powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2, powerUp.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'white'; // Icon color
+
+      ctx.font = `${powerUp.width * 0.7}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      switch (powerUp.type) {
+        case 'speed':
+          ctx.fillText('⚡', powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2); // Lightning bolt
+          break;
+        case 'slow':
+          ctx.fillText('🐢', powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2); // Turtle
+          break;
+        case 'shield':
+          ctx.fillText('🛡️', powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2); // Shield
+          break;
+        case 'multiplier':
+          ctx.fillText('✖️', powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2); // Multiplication sign
+          break;
+      }
+    }
+
+    // --- Game Logic Functions ---
+
+    /**
+     * Initializes snowflakes for background effect.
+     */
+    function initSnow() {
+      snowflakes = [];
+      for (let i = 0; i < 100; i++) {
+        snowflakes.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          r: Math.random() * 2 + 1,
+          s: Math.random() * 1 + 0.5
+        });
+      }
+    }
+
+    /**
+     * Spawns a new obstacle at the top of the canvas, choosing type randomly.
+     */
+    function spawnObstacle() {
+      const typeConfig = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      const size = typeConfig.size;
+      const x = Math.random() * (canvas.width - size);
+      obstacles.push({ x, y: -size, width: size, height: size, type: typeConfig.type });
+    }
+
+    /**
+     * Spawns a new power-up at the top of the canvas.
+     */
+    function spawnPowerUp() {
+      const size = 36;
+      const x = Math.random() * (canvas.width - size);
+      const types = ['speed', 'slow', 'shield', 'multiplier'];
+      const type = types[Math.floor(Math.random() * types.length)];
+      powerUps.push({ x, y: -size, width: size, height: size, type });
+    }
+
+    /**
+     * Checks for collision between two rectangular objects.
+     * @param {object} a - First object.
+     * @param {object} b - Second object.
+     * @returns {boolean} True if collision occurs, false otherwise.
+     */
+    function collide(a, b) {
+      return !(
+        a.x + a.width < b.x ||
+        a.x > b.x + b.width ||
+        a.y + a.height < b.y ||
+        a.y > b.y + b.height
+      );
+    }
+
+    /**
+     * Activates a specific power-up effect.
+     * @param {string} type - The type of power-up to activate.
+     */
+    function activatePowerUp(type) {
+      playSound(powerUpSoundBuffer);
+      powerUpActive = type;
+      powerUpTimer = 600; // 10 seconds (60 fps * 10)
+
+      switch (type) {
+        case 'speed':
+          skater.speed = skater.baseSpeed + 3;
+          skater.speedTrailTimer = 60; // Activate speed trail for 1 second initially
+          break;
+        case 'slow':
+          // Obstacle speed handled in update function
+          break;
+        case 'shield':
+          skater.shield = true;
+          break;
+        case 'multiplier':
+          scoreMultiplier = 2;
+          break;
+      }
+    }
+
+    /**
+     * Deactivates any active power-up effect.
+     */
+    function deactivatePowerUp() {
+      powerUpActive = null;
+      skater.speed = skater.baseSpeed;
+      skater.shield = false;
+      scoreMultiplier = 1;
+    }
+
+    /**
+     * Updates game state: moves objects, checks collisions, updates score.
+     */
+    function update() {
+      if (isGameOver || gamePaused) return; // Added gamePaused check
+
+      // Update speed trail timer
+      if (skater.speedTrailTimer > 0) {
+        skater.speedTrailTimer--;
+      }
+
+      // Move skater
+      skater.x += skater.dx;
+      skater.x = Math.max(0, Math.min(canvas.width - skater.width, skater.x));
+
+      // Calculate dynamic obstacle speed based on score
+      const baseObstacleSpeed = 4;
+      const difficultyIncrease = Math.min(Math.floor(score / 75), 5); // Increase speed every 75 points, max 5 units
+      let currentObstacleSpeed = baseObstacleSpeed + difficultyIncrease;
+
+      if (powerUpActive === 'slow') currentObstacleSpeed = Math.max(1, currentObstacleSpeed - 2); // Slow down obstacles
+      else if (powerUpActive === 'speed') currentObstacleSpeed = currentObstacleSpeed + 2; // Speed up obstacles for difficulty
+
+      obstacles.forEach(o => (o.y += currentObstacleSpeed));
+      obstacles = obstacles.filter(o => {
+        if (o.y > canvas.height) {
+          score += (1 * scoreMultiplier);
+          scoreFlashTimer = 15; // Activate score flash
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('highScore', highScore);
+          }
+          return false;
+        }
+        return true;
+      });
+
+      // Move power-ups
+      powerUps.forEach(pu => (pu.y += 3));
+      powerUps = powerUps.filter(pu => pu.y <= canvas.height);
+
+      // Check for obstacle collisions
+      for (let i = 0; i < obstacles.length; i++) {
+        if (collide(skater, obstacles[i])) {
+          if (skater.shield) {
+            obstacles.splice(i, 1);
+            skater.shield = false;
+            // No need to clear powerUpActive or powerUpTimer if shield is just a one-hit buffer
+            // If shield duration matters, you'd reset powerUpTimer here.
+          } else {
+            isGameOver = true;
+            playSound(gameOverSoundBuffer);
+            break;
+          }
+        }
+      }
+
+      // Check for power-up collection
+      for (let i = 0; i < powerUps.length; i++) {
+        if (collide(skater, powerUps[i])) {
+          activatePowerUp(powerUps[i].type);
+          powerUps.splice(i, 1);
+          break;
+        }
+      }
+
+      // Manage power-up timer
+      if (powerUpActive) {
+        powerUpTimer--;
+        if (powerUpTimer <= 0) {
+          deactivatePowerUp();
+        }
+      }
+
+      // Manage score flash timer
+      if (scoreFlashTimer > 0) {
+        scoreFlashTimer--;
+      }
+
+      // Spawn obstacles and power-ups
+      const obstacleSpawnRate = Math.max(30, 60 - Math.min(Math.floor(score / 50), 40)); // Faster spawn rate with score
+      if (frameCount % obstacleSpawnRate === 0) spawnObstacle();
+      if (frameCount % 600 === 0) spawnPowerUp();
+
+      frameCount++;
+    }
+
+    /**
+     * Draws all game elements on the canvas.
+     */
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw snowflakes
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      snowflakes.forEach(s => {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+        s.y += s.s;
+        if (s.y > canvas.height) {
+          s.y = 0;
+          s.x = Math.random() * canvas.width;
+        }
+      });
+
+      drawSkater();
+
+      obstacles.forEach(o => {
+        drawObstacle(o);
+      });
+
+      powerUps.forEach(pu => {
+        drawPowerUp(pu);
+      });
+
+      // Update scoreboard text with flash effect
+      currentScoreText.textContent = score;
+      highScoreText.textContent = highScore;
+      if (scoreFlashTimer > 0) {
+        currentScoreText.style.transform = `scale(${1 + (scoreFlashTimer / 30)})`; // Scale up briefly
+        currentScoreText.style.color = 'gold'; // Change color briefly
+      } else {
+        currentScoreText.style.transform = 'scale(1)';
+        currentScoreText.style.color = ''; // Reset color
+      }
+    }
+
+    /**
+     * Main game loop. Updates game state and draws elements.
+     */
+    function loop() {
+      update();
+      draw();
+      if (!isGameOver && !gamePaused) {
+        requestAnimationFrame(loop);
+      } else if (gamePaused) {
+        // If paused, keep drawing current state without updating
+        draw();
+      } else if (isGameOver) {
+        showGameOverScreen();
+      }
+    }
+
+    // --- Game State Management Functions ---
+
+    /**
+     * Toggles the game pause state.
+     */
+    function togglePause() {
+      gamePaused = !gamePaused;
+      if (gamePaused) {
+        startScreen.classList.remove('hidden');
+        startScreen.querySelector('h1').textContent = "Oyun Duraklatıldı";
+        startBtn.textContent = "Devam Et";
+      } else {
+        startScreen.classList.add('hidden');
+        startScreen.querySelector('h1').textContent = "Buz Pateni Oyunu"; // Reset title
+        startBtn.textContent = "Başla"; // Reset button text
+        loop(); // Resume game loop
+      }
+    }
+
+    /**
+     * Resets game state and starts the game.
+     */
+    function startGame() {
+      initAudio();
+      startScreen.classList.add('hidden');
+      gameOverScreen.classList.add('hidden');
+      scoreboard.classList.remove('hidden');
+      pauseBtn.classList.remove('hidden'); // Show pause button
+
+      score = 0;
+      frameCount = 0;
+      obstacles = [];
+      powerUps = [];
+      skater.x = (canvas.width / 2) - (skater.width / 2);
+      skater.shield = false;
+      skater.speed = skater.baseSpeed;
+      skater.speedTrailTimer = 0;
+      isGameOver = false;
+      gamePaused = false; // Ensure game is not paused on start
+      powerUpActive = null;
+      powerUpTimer = 0;
+      scoreMultiplier = 1;
+      scoreFlashTimer = 0;
+
+      initSnow();
+      loop();
+    }
+
+    /**
+     * Displays the game over screen with the final score.
+     */
+    function showGameOverScreen() {
+      finalScoreText.textContent = `Skorunuz: ${score}`;
+      gameOverScreen.classList.remove('hidden');
+      scoreboard.classList.add('hidden');
+      pauseBtn.classList.add('hidden'); // Hide pause button on game over
+    }
+
+    // --- Event Listeners ---
+
+    startBtn.onclick = () => {
+      if (gamePaused) {
+        togglePause(); // If it's a resume button click
+      } else {
+        startGame(); // If it's a fresh start
+      }
+    };
+    restartBtn.onclick = () => { startGame(); };
+    pauseBtn.onclick = togglePause; // New: Pause button functionality
+
+    // Keyboard controls
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'a') {
+        skater.dx = -skater.speed;
+      } else if (e.key === 'ArrowRight' || e.key === 'd') {
+        skater.dx = skater.speed;
+      } else if (e.key === 'Escape') { // New: Esc key for pause
+        if (!isGameOver) { // Only allow pause if game is not over
+            togglePause();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'a' || e.key === 'd') {
+        skater.dx = 0;
+      }
+    });
+
+    // Touch controls (for mobile)
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const touchX = e.touches[0].clientX;
+      if (touchX < window.innerWidth / 2) {
+        skater.dx = -skater.speed;
+      } else {
+        skater.dx = skater.speed;
+      }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault();
+      skater.dx = 0;
+    }, { passive: false });
+
+    // Initial setup on window load
+    window.onload = () => {
+        resizeCanvas();
+        skaterImg.onload = () => {
+            // Skater image is loaded. Game will start when the 'Başla' button is clicked.
+        };
+        skaterImg.onerror = () => {
+            console.error("Failed to load skater image. Falling back to simple shape.");
+            // Fallback: If image fails to load, draw a simple skater shape instead.
+            drawSkater = function() {
+                // Drawing code for fallback skater shape
+                ctx.fillStyle = '#ff66b2';
+                ctx.beginPath();
+                ctx.arc(skater.x + skater.width / 2, skater.y + skater.height / 3, skater.width / 3, 0, Math.PI * 2);
+                ctx.rect(skater.x + skater.width / 4, skater.y + skater.height / 2.5, skater.width / 2, skater.height / 2);
+                ctx.rect(skater.x + skater.width / 4 - 5, skater.y + skater.height - 10, skater.width / 2 + 10, 5);
+                ctx.fill();
+
+                if (skater.shield) {
+                    const glowAlpha = Math.abs(Math.sin(frameCount * 0.1)) * 0.5 + 0.3;
+                    ctx.strokeStyle = `rgba(0, 204, 255, ${glowAlpha})`;
+                    ctx.lineWidth = 6;
+                    ctx.beginPath();
+                    ctx.arc(skater.x + skater.width / 2, skater.y + skater.height / 2, skater.width * 0.7, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            };
+        };
+    };
+
+  </script>
+</body>
+</html>

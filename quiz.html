@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beni Ne Kadar Tanıyorsun?</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #ffe6f0;
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+        }
+
+        .container {
+            max-width: 600px;
+            background-color: white;
+            padding: 40px;
+            margin: 50px auto;
+            border-radius: 20px;
+            box-shadow: 0 0 15px rgba(255, 105, 180, 0.3);
+            text-align: center;
+        }
+
+        h1 {
+            color: #ff4081;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+
+        .question-text {
+            font-size: 20px;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-check {
+            text-align: left;
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background-color 0.3s;
+        }
+
+        .btn-action {
+            background-color: #ff4081;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+
+        .btn-action:hover {
+            background-color: #e73370;
+            transform: scale(1.05);
+        }
+
+        .option.correct {
+            background-color: #d4edda !important;
+        }
+
+        .option.wrong {
+            background-color: #f8d7da !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>📝 Beni Ne Kadar Tanıyorsun?</h1>
+        <div id="quiz-box">
+            <p id="question" class="question-text"></p>
+            <div id="options"></div>
+            <button id="btn" class="btn-action">Onayla</button>
+        </div>
+        <a href="wheel.html" id="hediyeBtn" class="btn btn-success mt-3"
+            style="font-size:18px; border-radius:10px; display:none;">
+            🎁 Hediye Çarkını Çevir!
+        </a>
+        <div id="result" class="mt-4" style="font-size: 18px;"></div>
+    </div>
+
+    <audio id="clickSound" src="sounds/move.mp3"></audio>
+    <audio id="correctSound" src="sounds/correct.wav"></audio>
+    <audio id="wrongSound" src="sounds/wrong.mp3"></audio>
+    <audio id="winSound" src="sounds/winv2.wav"></audio>
+    <audio id="loseSound" src="sounds/lose.wav"></audio>
+
+    <script>
+        const questions = [
+            { q: '1. Beraber İzlediğimiz İlk Film Hangisidir?', options: ['A: Shrek ', 'B: Buz Devri', 'C: Karlar Ülkesi', 'D: Kung Fu Panda'], answer: 2 },
+            { q: '2. En Sevdiğim Renk Nedir?', options: ['A: Kırmızı', 'B: Mavi', 'C: Yeşil', 'D: Sarı'], answer: 2 },
+            { q: '3. İlk Tanışmamızda Ne Hissettim?', options: ['A: Görür Görmez Aşık Oldum', 'B: Bu Kız Benim Olmalı', 'C: Allah Korusun', 'D: VAOOW OMG'], answer: 2 },
+            { q: '4. İlk Tanışmamızda Ne Hissettin?', options: ['A: Yakışıklıymışş', 'B: Bu Çocuk Benim Olmalı', 'C: Analar Neler Doğuruyor Bee', 'D: Hepsi'], answer: 3 },
+            { q: '5. En Sevdiğim Tatlı Nedir?', options: ['A: Cheesecake', 'B: Sen', 'C: Sütlaç', 'D: Tiramisu'], answer: 1 },
+            { q: '6. Beni En Çok Ne Zaman Sinirlendiriyorsun?', options: ['A: Hiçbir Zaman', 'B: Çantanı Koltuğa Koyunca', 'C: Bana Trip Atarken', 'D: Beni Arayıp Başkalarıyla Konuşurken'], answer: 3 },
+            { q: '7. Sana Ne Zaman Açılmaya Karar Verdim ', options: ['A: 3 Nisan 2024 ', 'B: 4 Nisan 2024', 'C: 5 Nisan 2024 ', 'D: 6 Nisan 2024'], answer: 2 },
+            { q: '8. Bir Hayvan Olabilseydim Ne Olmak İsterdim', options: ['A: Aslan', 'B: Kartal', 'C: Kurt', 'D: Köpek'], answer: 2 },
+            { q: '9. En Sevdiğim Kitap Hangisidir?', options: ['A: Harry Potter', 'B: Martin Eden', 'C: Kürk Mantolu Madonna', 'D: Suç ve Ceza'], answer: 1 },
+            { q: '10. Telefonumda seni hangi isimle kaydettim?', options: ['A: Nilsum', 'B: Bebeğim', 'C: Aşkım', 'D: Nilsum💖'], answer: 3 },
+            { q: '11. Sana En Çok Nasıl Seslenmeyi Seviyorum', options: ['A: Deyusss', 'B: Şekerparem', 'C: Bebeğim', 'D: Güzelim'], answer: 0 },
+            { q: '12. En Sevdiğim Türk Dizisi Hangisidir?', options: ['A: Kuzey Güney', 'B: Kurtlar Vadisi', 'C: Ezel', 'D: Kızılcık Şerbeti'], answer: 1 },
+            { q: '13. Hangi Filmi İzlerken Bir Bombalı Saldırıya Uğradım', options: ['A: Game Of Thrones', 'B: Arabalar', 'C: Babam Ve Oğlum', 'D: Evim Sensin'], answer: 3 },
+            { q: '14. En Sevdiğim Oyun Hangisidir?', options: ['A: Lol', 'B: Clash Royale', 'C: GTA', 'D: Among Us'], answer: 0 },
+            { q: '15. Olmazsa Olmaz Onsuz Yapamam Dediğim Şey Nedir?', options: ['A: Tatlı', 'B: Lol', 'C: Çay', 'D: Kola'], answer: 3 },
+            { q: '16. Bizim Şarkımız Hangisi?', options: ['A: Fotoğraf', 'B: Eylül Akşamı', 'C: Kızım', 'D: Haram Geceler'], answer: 0 }
+        ];
+        let current = 0;
+        let score = 0;
+        let answered = false;
+        let countdown = 30; // 30 saniye
+        let timerInterval;
+
+        const questionEl = document.getElementById('question');
+        const optionsEl = document.getElementById('options');
+        const btn = document.getElementById('btn');
+        const resultEl = document.getElementById('result');
+        const timerEl = document.createElement('p');
+
+        const clickSound = document.getElementById('clickSound');
+        const correctSound = document.getElementById('correctSound');
+        const wrongSound = document.getElementById('wrongSound');
+        const winSound = document.getElementById('winSound');
+        const loseSound = document.getElementById('loseSound');
+
+        function play(sound) {
+            sound.currentTime = 0;
+            sound.play();
+        }
+        
+        function showCorrectAnswer() {
+            const correct = questions[current].answer;
+            document.querySelectorAll('.option').forEach((optDiv, idx) => {
+                optDiv.classList.remove('correct', 'wrong');
+                if (idx === correct) {
+                    optDiv.classList.add('correct');
+                }
+            });
+        }
+
+        function startTimer() {
+            countdown = 30;
+            timerEl.textContent = `Kalan Süre: ${countdown} saniye`;
+            timerInterval = setInterval(() => {
+                countdown--;
+                timerEl.textContent = `Kalan Süre: ${countdown} saniye`;
+                if (countdown <= 0) {
+                    clearInterval(timerInterval);
+                    if (!answered) {
+                        answered = true;
+                        showCorrectAnswer();
+                        play(wrongSound);
+                        resultEl.textContent = '⏰ Süre doldu! Yanlış cevap sayıldı.';
+                        btn.textContent = current < questions.length - 1 ? 'Sonraki Soru' : 'Sonuçları Göster';
+                    }
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerEl.textContent = '';
+        }
+
+        function loadQuestion() {
+            answered = false;
+            btn.textContent = 'Onayla';
+            resultEl.textContent = '';
+            optionsEl.innerHTML = '';
+            if (!timerEl.isConnected) {
+                questionEl.insertAdjacentElement('beforebegin', timerEl);
+            }
+            timerEl.textContent = '';
+            const q = questions[current];
+            questionEl.textContent = q.q;
+            q.options.forEach((text, idx) => {
+                const div = document.createElement('div');
+                div.className = 'form-check option';
+                const input = document.createElement('input');
+                input.className = 'form-check-input';
+                input.type = 'radio';
+                input.name = 'option';
+                input.id = `opt${idx}`;
+                input.value = idx;
+                input.addEventListener('click', () => {
+                    play(clickSound);
+                });
+                const label = document.createElement('label');
+                label.className = 'form-check-label';
+                label.htmlFor = input.id;
+                label.textContent = text;
+                div.appendChild(input);
+                div.appendChild(label);
+                optionsEl.appendChild(div);
+            });
+            startTimer();
+        }
+
+        btn.addEventListener('click', () => {
+            play(clickSound);
+            if (!answered) {
+                const selected = document.querySelector('input[name="option"]:checked');
+                if (!selected) return;
+                const chosen = parseInt(selected.value);
+                const correct = questions[current].answer;
+                stopTimer();
+                document.querySelectorAll('.option').forEach((optDiv, idx) => {
+                    optDiv.classList.remove('correct', 'wrong');
+                    if (idx === correct) optDiv.classList.add('correct');
+                    if (idx === chosen && chosen !== correct) optDiv.classList.add('wrong');
+                });
+                if (chosen === correct) {
+                    play(correctSound);
+                    score++;
+                    resultEl.textContent = '✅ Doğru!';
+                } else {
+                    play(wrongSound);
+                    resultEl.textContent = '❌ Yanlış!';
+                }
+                answered = true;
+                btn.textContent = current < questions.length - 1 ? 'Sonraki Soru' : 'Sonuçları Göster';
+            } else {
+                setTimeout(() => {
+                    if (current < questions.length - 1) {
+                        current++;
+                        loadQuestion();
+                    } else {
+                        quizEnd();
+                    }
+                }, 0.500);
+            }
+        });
+        function quizEnd() {
+            questionEl.textContent = '';
+            optionsEl.innerHTML = '';
+            btn.style.display = 'none';
+            if (score >= 10) {
+                play(winSound);
+                document.getElementById('hediyeBtn').style.display = 'inline-block';
+                resultEl.textContent = `Test tamamlandı Hediye Çarkını Çevirmeye Hak Kazandın! Doğru cevap sayın: ${score} / ${questions.length}`;
+            }
+            else {
+                play(loseSound);
+                resultEl.textContent = `Test tamamlandı Maalesef Hediye Çarkını Çarkını Çeviremeyeceksin. Doğru Cevap Sayın: ${score} / ${questions.length}. Daha fazla çalışmalısın!`;
+            }
+        }
+        loadQuestion();
+    </script>
+</body>
+
+</html>
